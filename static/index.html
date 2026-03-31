@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stock Data Intelligence Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --panel: #121b2e;
+        --panel-2: #0f172a;
+        --text: #e6edf7;
+        --muted: #9fb2d1;
+        --accent: #7c3aed;
+        --border: rgba(255, 255, 255, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans";
+        color: var(--text);
+        background: radial-gradient(1200px 600px at 20% 0%, rgba(124, 58, 237, 0.25), transparent 60%),
+                    radial-gradient(900px 500px at 80% 10%, rgba(56, 189, 248, 0.18), transparent 55%),
+                    var(--bg);
+      }
+      header {
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(8px);
+        position: sticky;
+        top: 0;
+        background: rgba(11, 18, 32, 0.65);
+        z-index: 10;
+      }
+      header .title { font-weight: 700; letter-spacing: 0.2px; }
+      header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+      .wrap {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 16px;
+        padding: 16px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .panel {
+        background: linear-gradient(180deg, rgba(18, 27, 46, 0.9), rgba(15, 23, 42, 0.9));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .panel h3 {
+        margin: 0;
+        padding: 14px 14px 10px 14px;
+        font-size: 14px;
+        color: var(--muted);
+        border-bottom: 1px solid var(--border);
+      }
+      .company-list { max-height: calc(100vh - 170px); overflow: auto; }
+      .item {
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        cursor: pointer;
+      }
+      .item:hover { background: rgba(255,255,255,0.04); }
+      .item.selected {
+        background: rgba(124,58,237,0.14);
+        border-left: 3px solid rgba(124,58,237,0.95);
+        padding-left: 11px;
+      }
+      .item .sym { font-weight: 700; }
+      .item .nm { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+      .main { padding: 14px; }
+      .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+      .card {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .k { color: var(--muted); font-size: 12px; }
+      .v { font-size: 18px; font-weight: 800; margin-top: 6px; }
+      .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0 12px; }
+      select, input, button {
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 10px;
+        padding: 10px 12px;
+        outline: none;
+      }
+      button {
+        background: linear-gradient(135deg, rgba(124,58,237,0.95), rgba(59,130,246,0.75));
+        border: 0;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .btnSpin {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.25);
+        border-top-color: rgba(255,255,255,0.95);
+        animation: spin 0.9s linear infinite;
+      }
+      .help {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.05);
+        color: var(--muted);
+        font-size: 11px;
+        margin-left: 6px;
+        cursor: help;
+      }
+      .chart-wrap { padding: 10px; }
+      .hint { color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .error { color: #fca5a5; font-size: 13px; margin-top: 10px; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 999px;
+        background: rgba(255,255,255,0.04);
+        color: var(--text);
+        font-size: 13px;
+      }
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.25);
+        border-top-color: rgba(255,255,255,0.9);
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .movers {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .mini h4 {
+        margin: 0 0 8px 0;
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.2px;
+      }
+      .mini .line {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.05);
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+      .pos { color: #86efac; }
+      .neg { color: #fca5a5; }
+      @media (max-width: 900px) {
+        .wrap { grid-template-columns: 1fr; }
+        .row { grid-template-columns: 1fr; }
+        .company-list { max-height: 280px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="title">Stock Data Intelligence Dashboard</div>
+      <div class="sub">FastAPI + SQLite + computed metrics (Daily Return, MA7, 52W High/Low, Volatility Score)</div>
+    </header>
+
+    <div class="wrap">
+      <div class="panel">
+        <h3>Companies</h3>
+        <div id="companies" class="company-list"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Insights</h3>
+        <div class="main">
+          <div class="controls">
+            <label class="hint">Symbol:</label>
+            <input id="symbol" placeholder="e.g., INFY.NS" style="min-width: 200px;" />
+            <label class="hint">Range:</label>
+            <select id="days">
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 180 days</option>
+            </select>
+            <button id="loadBtn"><span id="loadBtnLabel">Load</span></button>
+          </div>
+
+          <div class="controls">
+            <label class="hint">Compare:</label>
+            <input id="c1" placeholder="symbol1 (e.g., INFY.NS)" style="min-width: 200px;" />
+            <input id="c2" placeholder="symbol2 (e.g., TCS.NS)" style="min-width: 200px;" />
+            <button id="cmpBtn"><span id="cmpBtnLabel">Compare</span></button>
+          </div>
+
+          <div class="row">
+            <div class="card">
+              <div class="k">52-week High</div>
+              <div class="v" id="hi">—</div>
+            </div>
+            <div class="card">
+              <div class="k">52-week Low</div>
+              <div class="v" id="lo">—</div>
+            </div>
+            <div class="card">
+              <div class="k">
+                Volatility Score (30d)
+                <span
+                  class="help"
+                  title="Volatility = standard deviation of daily returns over the last ~30 trading sessions. Higher means more price fluctuation (risk)."
+                >i</span>
+              </div>
+              <div class="v" id="vol">—</div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <div class="pill" id="statusPill" style="display:none;">
+              <div class="spinner"></div>
+              <div id="statusText">Loading…</div>
+            </div>
+            <div class="pill">
+              <span class="hint">🧠 Smart insight:</span>
+              <span id="smart">—</span>
+            </div>
+            <div class="pill">
+              <span class="hint">
+                🤖 Predicted next close:
+                <span
+                  class="help"
+                  title="Prediction uses a simple linear regression on the last ~60 closing prices (close vs time). This is a baseline forecast for demo purposes, not financial advice."
+                >i</span>
+              </span>
+              <span id="pred">—</span>
+            </div>
+          </div>
+
+          <div class="chart-wrap">
+            <canvas id="chart" height="150"></canvas>
+          </div>
+          <div class="hint" id="note">
+            Tip: click a company on the left, or type a symbol and press Load. Compare shows normalized performance curves.
+          </div>
+
+          <div class="movers">
+            <div class="card mini">
+              <h4>Top Gainers (latest day)</h4>
+              <div id="gainers"></div>
+            </div>
+            <div class="card mini">
+              <h4>Top Losers (latest day)</h4>
+              <div id="losers"></div>
+            </div>
+          </div>
+
+          <div class="error" id="err"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const errEl = $("err");
+      const fmt = (x) => (x === null || x === undefined || Number.isNaN(x)) ? "—" : (typeof x === "number" ? x.toFixed(4) : String(x));
+      const money = (x) => (x === null || x === undefined || Number.isNaN(x)) ? "—" : Number(x).toFixed(2);
+      const pct = (x) => (x === null || x === undefined || Number.isNaN(x)) ? "—" : `${(Number(x) * 100).toFixed(2)}%`;
+      const signedPct = (x) => {
+        if (x === null || x === undefined || Number.isNaN(x)) return "—";
+        const v = Number(x) * 100;
+        const s = v >= 0 ? "+" : "";
+        return `${s}${v.toFixed(2)}%`;
+      };
+
+      let chart;
+      function setError(msg) { errEl.textContent = msg || ""; }
+      function setBusy(isBusy, text) {
+        const pill = $("statusPill");
+        if (!pill) return;
+        pill.style.display = isBusy ? "inline-flex" : "none";
+        $("statusText").textContent = text || "Loading…";
+      }
+      function setButtonLoading(btnId, labelId, isBusy, busyText) {
+        const btn = $(btnId);
+        const label = $(labelId);
+        if (!btn || !label) return;
+        if (isBusy) {
+          btn.disabled = true;
+          label.textContent = busyText || "Loading";
+          if (!btn.querySelector(".btnSpin")) {
+            const s = document.createElement("span");
+            s.className = "btnSpin";
+            btn.prepend(s);
+          }
+        } else {
+          btn.disabled = false;
+          label.textContent = (btnId === "cmpBtn") ? "Compare" : "Load";
+          const s = btn.querySelector(".btnSpin");
+          if (s) s.remove();
+        }
+      }
+      function setSelectedCompany(symbol) {
+        document.querySelectorAll("#companies .item").forEach((el) => {
+          const sym = el.getAttribute("data-symbol");
+          el.classList.toggle("selected", sym === symbol);
+        });
+      }
+      async function apiJsonError(text) {
+        try { return JSON.parse(text); } catch { return null; }
+      }
+      async function apiWithBetterError(path) {
+        const res = await fetch(path);
+        const text = await res.text();
+        if (!res.ok) {
+          const j = await apiJsonError(text);
+          const detail = j?.detail ? (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : text;
+          throw new Error(detail || `HTTP ${res.status}`);
+        }
+        return text ? JSON.parse(text) : null;
+      }
+
+      function buildChart(labels, s1, s2, label1, label2) {
+        const ctx = $("chart");
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: label1,
+                data: s1,
+                borderColor: "rgba(124,58,237,0.95)",
+                backgroundColor: "rgba(124,58,237,0.15)",
+                tension: 0.25,
+                pointRadius: 0
+              },
+              ...(s2 ? [{
+                label: label2,
+                data: s2,
+                borderColor: "rgba(56,189,248,0.95)",
+                backgroundColor: "rgba(56,189,248,0.12)",
+                tension: 0.25,
+                pointRadius: 0
+              }] : [])
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { labels: { color: "#e6edf7" } },
+              tooltip: { mode: "index", intersect: false }
+            },
+            scales: {
+              x: { ticks: { color: "#9fb2d1" }, grid: { color: "rgba(255,255,255,0.05)" } },
+              y: { ticks: { color: "#9fb2d1" }, grid: { color: "rgba(255,255,255,0.05)" } }
+            }
+          }
+        });
+      }
+
+      async function api(path) { return await apiWithBetterError(path); }
+
+      async function loadCompanies() {
+        try {
+          const list = await api("/companies");
+          const box = $("companies");
+          box.innerHTML = "";
+          list.forEach((c) => {
+            const div = document.createElement("div");
+            div.className = "item";
+            div.setAttribute("data-symbol", c.symbol);
+            div.innerHTML = `<div class="sym">${c.symbol}</div><div class="nm">${c.name || ""}</div>`;
+            div.onclick = () => {
+              $("symbol").value = c.symbol;
+              $("c1").value = c.symbol;
+              setError("");
+              setSelectedCompany(c.symbol);
+              loadSymbol();
+            };
+            box.appendChild(div);
+          });
+          if (list.length) {
+            // Auto-load the first symbol so the dashboard never looks "empty"
+            $("symbol").value = list[0].symbol;
+            $("c1").value = list[0].symbol;
+            setSelectedCompany(list[0].symbol);
+            await loadSymbol();
+          }
+        } catch (e) {
+          setError("Could not load companies. Start the backend and refresh.");
+        }
+      }
+
+      async function loadSymbol() {
+        const sym = $("symbol").value.trim();
+        const days = $("days").value;
+        if (!sym) return setError("Enter a symbol (e.g., INFY.NS).");
+        setError("");
+        setBusy(true, "Loading data + insights…");
+        setButtonLoading("loadBtn", "loadBtnLabel", true, "Loading");
+        try {
+          setSelectedCompany(sym);
+          const sum = await api(`/summary/${encodeURIComponent(sym)}`);
+          $("hi").textContent = money(sum.high_52w);
+          $("lo").textContent = money(sum.low_52w);
+          $("vol").textContent = fmt(sum.volatility_score_30d);
+
+          const ins = await api(`/insights/${encodeURIComponent(sym)}`);
+          $("smart").textContent = (ins.signals && ins.signals.length) ? `📈 ${ins.signals.join(" • ")}` : "—";
+
+          const pred = await api(`/predict/${encodeURIComponent(sym)}?lookback_days=60`);
+          $("pred").textContent = `${money(pred.predicted_next_close)} (${signedPct(pred.predicted_change_pct)})`;
+
+          const data = await api(`/data/${encodeURIComponent(sym)}?days=${encodeURIComponent(days)}`);
+          const rows = data.rows || [];
+          const labels = rows.map((r) => r.date);
+          const close = rows.map((r) => r.close);
+          const ma7 = rows.map((r) => r.ma7);
+          buildChart(labels, close, ma7, `📈 ${sym} Close`, `⚡ ${sym} MA7`);
+        } catch (e) {
+          setError(`Load failed: ${e.message}`);
+        } finally {
+          setButtonLoading("loadBtn", "loadBtnLabel", false);
+          setBusy(false);
+        }
+      }
+
+      async function compare() {
+        const s1 = $("c1").value.trim();
+        const s2 = $("c2").value.trim();
+        const days = $("days").value;
+        if (!s1 || !s2) return setError("Enter both compare symbols (e.g., INFY.NS and TCS.NS).");
+        setError("");
+        setBusy(true, "Comparing…");
+        setButtonLoading("cmpBtn", "cmpBtnLabel", true, "Comparing");
+        try {
+          const cmp = await api(`/compare?symbol1=${encodeURIComponent(s1)}&symbol2=${encodeURIComponent(s2)}&days=${encodeURIComponent(days)}`);
+          const series = cmp.series || [];
+          const labels = series.map((r) => r.date);
+          const norm1 = series.map((r) => r.norm1);
+          const norm2 = series.map((r) => r.norm2);
+          buildChart(labels, norm1, norm2, `📈 ${s1} (normalized)`, `📉 ${s2} (normalized)`);
+
+          // show summary for symbol1 on cards (keeps UI simple)
+          const sum1 = cmp.summary?.symbol1;
+          if (sum1) {
+            $("hi").textContent = money(sum1.high_52w);
+            $("lo").textContent = money(sum1.low_52w);
+            $("vol").textContent = fmt(sum1.volatility_score_30d);
+          }
+          const corr = cmp.correlation_daily_returns;
+          const corrAbs = corr === null ? null : Math.abs(corr);
+          const corrLabel =
+            corr === null ? "Correlation unavailable"
+            : corrAbs >= 0.7 ? `Strong correlation (${corr.toFixed(2)})`
+            : corrAbs >= 0.35 ? `Moderate correlation (${corr.toFixed(2)})`
+            : `Weak correlation (${corr.toFixed(2)})`;
+
+          const p1 = norm1.length ? (norm1[norm1.length - 1] / norm1[0] - 1) : null;
+          const p2 = norm2.length ? (norm2[norm2.length - 1] / norm2[0] - 1) : null;
+          const perfText =
+            (p1 === null || p2 === null) ? "Performance unavailable"
+            : (p1 - p2) >= 0.02 ? `${s1} outperforming ${s2} by ~${signedPct(p1 - p2)} in last ${days} days`
+            : (p2 - p1) >= 0.02 ? `${s1} underperforming ${s2} by ~${signedPct(p1 - p2)} in last ${days} days`
+            : `${s1} roughly matching ${s2} over last ${days} days`;
+
+          $("note").textContent = `Aligned days: ${cmp.days_aligned}. ${corrLabel}.`;
+          $("smart").textContent = `🧠 ${perfText} • ${corrLabel}`;
+
+          // Keep prediction populated (show for symbol1)
+          const pred1 = await api(`/predict/${encodeURIComponent(s1)}?lookback_days=60`);
+          $("pred").textContent = `${money(pred1.predicted_next_close)} (${signedPct(pred1.predicted_change_pct)})`;
+        } catch (e) {
+          setError(`Compare failed: ${e.message}`);
+        } finally {
+          setButtonLoading("cmpBtn", "cmpBtnLabel", false);
+          setBusy(false);
+        }
+      }
+
+      function renderMovers(boxId, items, isGainers) {
+        const box = $(boxId);
+        box.innerHTML = "";
+        if (!items || !items.length) {
+          box.innerHTML = `<div class="hint">—</div>`;
+          return;
+        }
+        items.forEach((it) => {
+          const div = document.createElement("div");
+          div.className = "line";
+          const cls = (it.daily_return ?? 0) >= 0 ? "pos" : "neg";
+          div.innerHTML = `<div><b>${it.symbol}</b> <span class="hint">${it.name || ""}</span></div><div class="${cls}">${pct(it.daily_return)}</div>`;
+          div.onclick = () => {
+            $("symbol").value = it.symbol;
+            $("c1").value = it.symbol;
+            loadSymbol();
+          };
+          div.style.cursor = "pointer";
+          box.appendChild(div);
+        });
+      }
+
+      async function loadMovers() {
+        try {
+          const m = await api("/movers");
+          renderMovers("gainers", m.top_gainers, true);
+          renderMovers("losers", m.top_losers, false);
+        } catch (e) {
+          // not critical for initial use
+        }
+      }
+
+      $("loadBtn").onclick = loadSymbol;
+      $("cmpBtn").onclick = compare;
+      loadCompanies();
+      loadMovers();
+    </script>
+  </body>
+</html>
+
