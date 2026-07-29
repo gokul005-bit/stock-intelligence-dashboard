@@ -1,4 +1,4 @@
-# Stock Data Intelligence Dashboard (JarNox Internship Assignment)
+# Stock Data Intelligence Dashboard
 
 Mini financial data platform to collect, clean, store, and visualize stock data with clean REST APIs and a simple dashboard UI.
 
